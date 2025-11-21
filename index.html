@@ -1,0 +1,715 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <title>家計簿アプリ</title>
+
+  <!-- iPhone向け設定 -->
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="家計簿">
+  <!-- アイコンはあとで差し替え -->
+  <link rel="apple-touch-icon" href="icon-192.png">
+
+  <style>
+    html, body {
+      margin: 0;
+      padding: 0;
+      height: 100%;
+      font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      background: #f5f5f5;
+    }
+    .app {
+      min-height: 100vh;
+      padding: 16px;
+      box-sizing: border-box;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+    }
+    h1 {
+      font-size: 22px;
+      margin: 0;
+    }
+    .card {
+      background: #ffffff;
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    }
+    .card h2 {
+      margin: 0 0 8px;
+      font-size: 18px;
+    }
+    label {
+      display: block;
+      font-size: 14px;
+      margin-top: 8px;
+    }
+    input, select {
+      width: 100%;
+      padding: 8px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      box-sizing: border-box;
+      font-size: 16px;
+      margin-top: 4px;
+    }
+    button {
+      width: 100%;
+      padding: 12px 16px;
+      font-size: 16px;
+      border-radius: 999px;
+      border: none;
+      cursor: pointer;
+      background: #007aff;
+      color: #fff;
+      margin-top: 12px;
+    }
+    button:active {
+      opacity: 0.85;
+    }
+    .summary {
+      display: flex;
+      justify-content: space-between;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+    .summary span.label {
+      color: #555;
+    }
+    .summary span.value {
+      font-weight: 600;
+    }
+    .records {
+      max-height: 40vh;
+      overflow-y: auto;
+      margin-top: 8px;
+    }
+    .record-item {
+      padding: 8px 0;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+    .record-top {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+    .record-left {
+      flex: 1;
+    }
+    .record-amount {
+      white-space: nowrap;
+    }
+    .record-meta {
+      font-size: 12px;
+      color: #777;
+      margin-top: 2px;
+    }
+    .expense {
+      color: #d12020;
+    }
+    .empty {
+      font-size: 13px;
+      color: #777;
+      text-align: center;
+      margin-top: 8px;
+    }
+    .section-title {
+      font-weight: 600;
+      margin-top: 8px;
+      font-size: 14px;
+      color: #444;
+    }
+    .small-text {
+      font-size: 12px;
+      color: #666;
+    }
+    .inline-input {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      margin-top: 8px;
+    }
+    .inline-input input {
+      flex: 1;
+      margin-top: 0;
+    }
+    .inline-input button {
+      width: auto;
+      margin-top: 0;
+      padding-inline: 12px;
+      font-size: 14px;
+    }
+    .highlight {
+      font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <!-- タイトル -->
+    <div class="card">
+      <h1>家計簿</h1>
+      <p class="small-text">
+        ※データはこのiPhoneのブラウザ内だけに保存されます（サーバー送信なし）
+      </p>
+    </div>
+
+    <!-- 入力フォーム -->
+    <div class="card">
+      <h2>入力</h2>
+      <form id="entry-form">
+        <label>
+          日付
+          <input type="date" id="date" required>
+        </label>
+
+        <label>
+          カテゴリ
+          <input list="category-list" id="category" placeholder="食費, 交通費, 日用品 など">
+          <datalist id="category-list"></datalist>
+        </label>
+
+        <label>
+          金種
+          <select id="method">
+            <option value="cash">現金</option>
+            <option value="card">カード</option>
+            <option value="point">ポイント</option>
+            <option value="other">その他</option>
+          </select>
+        </label>
+
+        <label>
+          店名
+          <input list="shop-list" id="shop" placeholder="スーパーA, コンビニB など">
+          <datalist id="shop-list"></datalist>
+        </label>
+
+        <label>
+          金額（円）※支出のみ（＋の数字）
+          <input type="number" id="amount" inputmode="numeric" required>
+        </label>
+
+        <label>
+          メモ
+          <input type="text" id="memo" placeholder="任意">
+        </label>
+
+        <button type="submit">追加</button>
+      </form>
+    </div>
+
+    <!-- 基準残高の設定 -->
+    <div class="card">
+      <h2>基準残高</h2>
+      <p class="small-text">
+        財布の中身がはっきりわかるタイミング（月初など）で、
+        「この日に財布にいくらあったか」を登録しておきます。
+      </p>
+
+      <label>
+        基準日
+        <input type="date" id="baseline-date">
+      </label>
+
+      <label>
+        財布の残高（円）
+        <input type="number" id="baseline-amount" inputmode="numeric">
+      </label>
+
+      <button id="save-baseline">基準を保存</button>
+
+      <p class="small-text" id="current-baseline-info" style="margin-top:8px;"></p>
+    </div>
+
+    <!-- 日別集計＆財布照合 -->
+    <div class="card">
+      <h2>日別 / 財布照合</h2>
+
+      <label>
+        表示する日
+        <input type="date" id="day-select">
+      </label>
+
+      <div class="summary">
+        <span class="label">その日の支出合計</span>
+        <span class="value" id="day-total">0 円</span>
+      </div>
+      <div class="summary">
+        <span class="label">その日の現金支出</span>
+        <span class="value" id="day-cash-total">0 円</span>
+      </div>
+
+      <p class="section-title">基準から見た財布残高（理論値）</p>
+      <p class="small-text" id="expected-cash-text">
+        基準点が設定されていません。
+      </p>
+
+      <div class="inline-input">
+        <input type="number" id="actual-wallet" inputmode="numeric" placeholder="実際の財布残高（円）">
+        <button type="button" id="calc-diff">差額計算</button>
+      </div>
+      <p class="small-text" id="wallet-diff-text"></p>
+
+      <div class="records" id="day-records"></div>
+      <div class="empty" id="day-empty" style="display:none;">この日のデータはまだありません。</div>
+    </div>
+
+    <!-- 月別集計 -->
+    <div class="card">
+      <h2>月別集計</h2>
+
+      <label>
+        表示する月
+        <input type="month" id="month-select">
+      </label>
+
+      <div class="summary">
+        <span class="label">月合計（すべて）</span>
+        <span class="value" id="month-total">0 円</span>
+      </div>
+      <div class="summary">
+        <span class="label">現金</span>
+        <span class="value" id="month-cash">0 円</span>
+      </div>
+      <div class="summary">
+        <span class="label">カード</span>
+        <span class="value" id="month-card">0 円</span>
+      </div>
+      <div class="summary">
+        <span class="label">ポイント</span>
+        <span class="value" id="month-point">0 円</span>
+      </div>
+      <div class="summary">
+        <span class="label">その他</span>
+        <span class="value" id="month-other">0 円</span>
+      </div>
+
+      <div class="records" id="month-records"></div>
+      <div class="empty" id="month-empty" style="display:none;">この月のデータはまだありません。</div>
+    </div>
+  </div>
+
+  <script>
+    const STORAGE_KEY_RECORDS = 'kakeibo_records_v2';
+    const STORAGE_KEY_BASELINES = 'kakeibo_cash_baselines_v1';
+
+    // --- 共通: 日付系 ---
+    function todayStr() {
+      const d = new Date();
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    }
+
+    function monthStrFromDateStr(dateStr) {
+      // yyyy-mm-dd -> yyyy-mm
+      return dateStr.slice(0, 7);
+    }
+
+    // --- データ読み書き ---
+    function loadRecords() {
+      const raw = localStorage.getItem(STORAGE_KEY_RECORDS);
+      if (!raw) return [];
+      try {
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveRecords(records) {
+      localStorage.setItem(STORAGE_KEY_RECORDS, JSON.stringify(records));
+    }
+
+    function loadBaselines() {
+      const raw = localStorage.getItem(STORAGE_KEY_BASELINES);
+      if (!raw) return [];
+      try {
+        const arr = JSON.parse(raw);
+        return Array.isArray(arr) ? arr : [];
+      } catch {
+        return [];
+      }
+    }
+
+    function saveBaselines(baselines) {
+      localStorage.setItem(STORAGE_KEY_BASELINES, JSON.stringify(baselines));
+    }
+
+    // データ本体
+    const records = loadRecords();
+    const baselines = loadBaselines();
+
+    // --- DOM取得 ---
+    const dateInput = document.getElementById('date');
+    const categoryInput = document.getElementById('category');
+    const categoryList = document.getElementById('category-list');
+    const methodSelect = document.getElementById('method');
+    const shopInput = document.getElementById('shop');
+    const shopList = document.getElementById('shop-list');
+    const amountInput = document.getElementById('amount');
+    const memoInput = document.getElementById('memo');
+    const entryForm = document.getElementById('entry-form');
+
+    const baselineDateInput = document.getElementById('baseline-date');
+    const baselineAmountInput = document.getElementById('baseline-amount');
+    const saveBaselineBtn = document.getElementById('save-baseline');
+    const currentBaselineInfo = document.getElementById('current-baseline-info');
+
+    const daySelect = document.getElementById('day-select');
+    const dayTotalEl = document.getElementById('day-total');
+    const dayCashTotalEl = document.getElementById('day-cash-total');
+    const expectedCashText = document.getElementById('expected-cash-text');
+    const actualWalletInput = document.getElementById('actual-wallet');
+    const calcDiffBtn = document.getElementById('calc-diff');
+    const walletDiffText = document.getElementById('wallet-diff-text');
+    const dayRecordsContainer = document.getElementById('day-records');
+    const dayEmpty = document.getElementById('day-empty');
+
+    const monthSelect = document.getElementById('month-select');
+    const monthTotalEl = document.getElementById('month-total');
+    const monthCashEl = document.getElementById('month-cash');
+    const monthCardEl = document.getElementById('month-card');
+    const monthPointEl = document.getElementById('month-point');
+    const monthOtherEl = document.getElementById('month-other');
+    const monthRecordsContainer = document.getElementById('month-records');
+    const monthEmpty = document.getElementById('month-empty');
+
+    // 日別照合用に、直近の「計算結果」を保持
+    let lastExpectedCash = null;
+    let lastExpectedCashDate = null;
+
+    // --- 初期値セット ---
+    const today = todayStr();
+    dateInput.value = today;
+    daySelect.value = today;
+    monthSelect.value = monthStrFromDateStr(today);
+    // 基準日はデフォルトで月初にする（とりあえず）
+    const [y, m] = today.split('-');
+    baselineDateInput.value = `${y}-${m}-01`;
+
+    // --- 過去データから候補リスト作成 ---
+    function updateDatalists() {
+      const categorySet = new Set();
+      const shopSet = new Set();
+      for (const r of records) {
+        if (r.category) categorySet.add(r.category);
+        if (r.shop) shopSet.add(r.shop);
+      }
+
+      categoryList.innerHTML = '';
+      categorySet.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        categoryList.appendChild(opt);
+      });
+
+      shopList.innerHTML = '';
+      shopSet.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        shopList.appendChild(opt);
+      });
+    }
+
+    // --- 基準点関連 ---
+    function getBaselineForDate(dateStr) {
+      if (baselines.length === 0) return null;
+      const candidates = baselines
+        .filter(b => b.date <= dateStr)
+        .sort((a, b) => (a.date < b.date ? 1 : -1)); // 日付降順
+
+      return candidates[0] || null;
+    }
+
+    function renderBaselineInfo() {
+      const targetDate = daySelect.value || todayStr();
+      const baseline = getBaselineForDate(targetDate);
+      if (!baseline) {
+        currentBaselineInfo.textContent = 'この日以前の基準点は未設定です。';
+      } else {
+        currentBaselineInfo.textContent =
+          `この日以前で最新の基準: ${baseline.date} 時点で ` +
+          `${baseline.amount.toLocaleString()} 円`;
+      }
+    }
+
+    saveBaselineBtn.addEventListener('click', () => {
+      const date = baselineDateInput.value;
+      const amountStr = baselineAmountInput.value;
+      const amount = Number(amountStr);
+
+      if (!date || !amountStr || isNaN(amount)) {
+        alert('基準日と金額を入力してください');
+        return;
+      }
+
+      baselines.push({
+        id: Date.now(),
+        date,
+        amount
+      });
+
+      // 日付昇順で揃えておく
+      baselines.sort((a, b) => (a.date > b.date ? 1 : -1));
+      saveBaselines(baselines);
+      baselineAmountInput.value = '';
+
+      renderBaselineInfo();
+      renderDaySection(); // 基準残高テキストを更新
+      alert('基準を保存しました');
+    });
+
+    // --- 入力フォーム送信 ---
+    entryForm.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const date = dateInput.value;
+      const category = categoryInput.value.trim();
+      const method = methodSelect.value;
+      const shop = shopInput.value.trim();
+      const amountStr = amountInput.value;
+      const memo = memoInput.value.trim();
+
+      const amount = Number(amountStr);
+      if (!date || !amountStr || isNaN(amount)) {
+        alert('日付と金額を入力してください');
+        return;
+      }
+
+      const record = {
+        id: Date.now(),
+        date,
+        category,
+        method,  // cash/card/point/other
+        shop,
+        amount,
+        memo
+      };
+
+      records.push(record);
+      saveRecords(records);
+
+      // 入力クリア（カテゴリと店名は残してもいいけど、一旦そのまま）
+      amountInput.value = '';
+      memoInput.value = '';
+
+      updateDatalists();
+      renderAll();
+    });
+
+    // --- 日別表示・財布照合 ---
+    function renderDaySection() {
+      const day = daySelect.value || todayStr();
+
+      const list = records
+        .filter(r => r.date === day)
+        .sort((a, b) => a.id - b.id); // 追加順
+
+      dayRecordsContainer.innerHTML = '';
+
+      if (list.length === 0) {
+        dayEmpty.style.display = 'block';
+      } else {
+        dayEmpty.style.display = 'none';
+      }
+
+      let dayTotal = 0;
+      let dayCashTotal = 0;
+
+      for (const r of list) {
+        dayTotal += r.amount;
+        if (r.method === 'cash') {
+          dayCashTotal += r.amount;
+        }
+
+        const div = document.createElement('div');
+        div.className = 'record-item';
+
+        const top = document.createElement('div');
+        top.className = 'record-top';
+
+        const left = document.createElement('div');
+        left.className = 'record-left';
+        left.textContent =
+          `${r.category || '未分類'} / ${r.shop || '店名なし'} / ${methodLabel(r.method)}`;
+
+        const right = document.createElement('div');
+        right.className = 'record-amount expense';
+        right.textContent = `- ${r.amount.toLocaleString()} 円`;
+
+        top.appendChild(left);
+        top.appendChild(right);
+
+        div.appendChild(top);
+
+        if (r.memo) {
+          const meta = document.createElement('div');
+          meta.className = 'record-meta';
+          meta.textContent = r.memo;
+          div.appendChild(meta);
+        }
+
+        dayRecordsContainer.appendChild(div);
+      }
+
+      dayTotalEl.textContent = `${dayTotal.toLocaleString()} 円`;
+      dayCashTotalEl.textContent = `${dayCashTotal.toLocaleString()} 円`;
+
+      // 基準から見た理論上の財布残高を計算
+      const baseline = getBaselineForDate(day);
+      if (!baseline) {
+        expectedCashText.textContent = 'この日以前の基準点がないため計算できません。';
+        lastExpectedCash = null;
+        lastExpectedCashDate = null;
+      } else {
+        const cashOut = records
+          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day)
+          .reduce((sum, r) => sum + r.amount, 0);
+
+        const expected = baseline.amount - cashOut;
+        lastExpectedCash = expected;
+        lastExpectedCashDate = day;
+
+        expectedCashText.innerHTML =
+          `基準 ${baseline.date} の <span class="highlight">${baseline.amount.toLocaleString()} 円</span> から ` +
+          `この日までの現金支出 <span class="highlight">${cashOut.toLocaleString()} 円</span> を引くと、` +
+          `<br>この日の理論上の財布残高は <span class="highlight">${expected.toLocaleString()} 円</span> です。`;
+      }
+
+      // 差額表示は日付変更時にクリア
+      walletDiffText.textContent = '';
+    }
+
+    daySelect.addEventListener('change', () => {
+      renderBaselineInfo();
+      renderDaySection();
+    });
+
+    calcDiffBtn.addEventListener('click', () => {
+      if (lastExpectedCash === null) {
+        alert('まず基準点を設定し、日付を指定してください。');
+        return;
+      }
+
+      const actualStr = actualWalletInput.value;
+      const actual = Number(actualStr);
+      if (!actualStr || isNaN(actual)) {
+        alert('実際の財布残高を入力してください');
+        return;
+      }
+
+      const diff = actual - lastExpectedCash;
+      let msg = '';
+
+      if (diff === 0) {
+        msg = '記録どおりです。差額はありません。';
+      } else if (diff > 0) {
+        msg = `実際の方が <span class="highlight">${diff.toLocaleString()} 円</span> 多いです。`;
+      } else {
+        msg = `実際の方が <span class="highlight">${Math.abs(diff).toLocaleString()} 円</span> 少ないです。`;
+      }
+
+      walletDiffText.innerHTML = msg;
+    });
+
+    // --- 月別表示 ---
+    function renderMonthSection() {
+      const month = monthSelect.value || monthStrFromDateStr(todayStr());
+
+      const list = records
+        .filter(r => r.date.startsWith(month))
+        .sort((a, b) => (a.date < b.date ? 1 : -1)); // 日付降順
+
+      monthRecordsContainer.innerHTML = '';
+
+      if (list.length === 0) {
+        monthEmpty.style.display = 'block';
+      } else {
+        monthEmpty.style.display = 'none';
+      }
+
+      let total = 0;
+      let cash = 0;
+      let card = 0;
+      let point = 0;
+      let other = 0;
+
+      for (const r of list) {
+        total += r.amount;
+        if (r.method === 'cash') cash += r.amount;
+        else if (r.method === 'card') card += r.amount;
+        else if (r.method === 'point') point += r.amount;
+        else other += r.amount;
+
+        const div = document.createElement('div');
+        div.className = 'record-item';
+
+        const top = document.createElement('div');
+        top.className = 'record-top';
+
+        const left = document.createElement('div');
+        left.className = 'record-left';
+        left.textContent =
+          `${r.date} / ${r.category || '未分類'} / ${r.shop || '店名なし'} / ${methodLabel(r.method)}`;
+
+        const right = document.createElement('div');
+        right.className = 'record-amount expense';
+        right.textContent = `- ${r.amount.toLocaleString()} 円`;
+
+        top.appendChild(left);
+        top.appendChild(right);
+        div.appendChild(top);
+
+        if (r.memo) {
+          const meta = document.createElement('div');
+          meta.className = 'record-meta';
+          meta.textContent = r.memo;
+          div.appendChild(meta);
+        }
+
+        monthRecordsContainer.appendChild(div);
+      }
+
+      monthTotalEl.textContent = `${total.toLocaleString()} 円`;
+      monthCashEl.textContent = `${cash.toLocaleString()} 円`;
+      monthCardEl.textContent = `${card.toLocaleString()} 円`;
+      monthPointEl.textContent = `${point.toLocaleString()} 円`;
+      monthOtherEl.textContent = `${other.toLocaleString()} 円`;
+    }
+
+    monthSelect.addEventListener('change', renderMonthSection);
+
+    // --- ユーティリティ ---
+    function methodLabel(method) {
+      switch (method) {
+        case 'cash':
+          return '現金';
+        case 'card':
+          return 'カード';
+        case 'point':
+          return 'ポイント';
+        default:
+          return 'その他';
+      }
+    }
+
+    function renderAll() {
+      updateDatalists();
+      renderBaselineInfo();
+      renderDaySection();
+      renderMonthSection();
+    }
+
+    // 初期描画
+    renderAll();
+  </script>
+</body>
+</html>
