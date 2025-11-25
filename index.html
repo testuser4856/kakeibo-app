@@ -20,14 +20,21 @@
       font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
       background: #f5f5f5;
     }
+
     .app {
       min-height: 100vh;
       padding: 16px;
+      padding-bottom: 80px; /* タブ分の余白 */
       box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      gap: 16px;
     }
+
+    .view {
+      display: none;
+    }
+    .view.active {
+      display: block;
+    }
+
     h1 {
       font-size: 22px;
       margin: 0;
@@ -37,6 +44,7 @@
       border-radius: 12px;
       padding: 16px;
       box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+      margin-bottom: 16px;
     }
     .card h2 {
       margin: 0 0 8px;
@@ -57,19 +65,23 @@
       margin-top: 4px;
     }
     button {
-      width: 100%;
-      padding: 12px 16px;
-      font-size: 16px;
+      padding: 10px 16px;
+      font-size: 15px;
       border-radius: 999px;
       border: none;
       cursor: pointer;
       background: #007aff;
       color: #fff;
-      margin-top: 12px;
     }
     button:active {
       opacity: 0.85;
     }
+
+    .primary-btn {
+      width: 100%;
+      margin-top: 12px;
+    }
+
     .summary {
       display: flex;
       justify-content: space-between;
@@ -108,24 +120,29 @@
       color: #777;
       margin-top: 2px;
     }
+
     .expense {
-      color: #d12020;
+      color: #d66b00; /* オレンジ */
     }
+    .income {
+      color: #007aff; /* 青 */
+    }
+
     .empty {
       font-size: 13px;
       color: #777;
       text-align: center;
       margin-top: 8px;
     }
+    .small-text {
+      font-size: 12px;
+      color: #666;
+    }
     .section-title {
       font-weight: 600;
       margin-top: 8px;
       font-size: 14px;
       color: #444;
-    }
-    .small-text {
-      font-size: 12px;
-      color: #666;
     }
     .inline-input {
       display: flex;
@@ -138,7 +155,6 @@
       margin-top: 0;
     }
     .inline-input button {
-      width: auto;
       margin-top: 0;
       padding-inline: 12px;
       font-size: 14px;
@@ -146,159 +162,287 @@
     .highlight {
       font-weight: 700;
     }
+
+    /* カレンダー */
+    .calendar-grid {
+      margin-top: 8px;
+    }
+    .calendar-header-row,
+    .calendar-cells {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+    }
+    .calendar-header-cell {
+      text-align: center;
+      font-size: 12px;
+      color: #666;
+    }
+    .calendar-cell {
+      min-height: 52px;
+      background: #fafafa;
+      border-radius: 8px;
+      padding: 4px;
+      box-sizing: border-box;
+      font-size: 11px;
+    }
+    .calendar-cell.empty {
+      background: transparent;
+    }
+    .calendar-day-number {
+      text-align: right;
+      font-size: 12px;
+      margin-bottom: 2px;
+    }
+    .calendar-income {
+      font-size: 11px;
+    }
+    .calendar-expense {
+      font-size: 11px;
+    }
+    .calendar-cell.today {
+      border: 1px solid #007aff;
+    }
+    .calendar-cell.selected {
+      box-shadow: 0 0 0 2px rgba(0,122,255,0.3);
+    }
+
+    /* タブバー */
+    .tab-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 56px;
+      background: #ffffff;
+      border-top: 1px solid #ddd;
+      display: flex;
+      justify-content: space-around;
+      align-items: center;
+      z-index: 10;
+    }
+    .tab-button {
+      flex: 1;
+      height: 100%;
+      background: none;
+      border: none;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      color: #888;
+    }
+    .tab-button.active {
+      color: #007aff;
+      font-weight: 600;
+    }
   </style>
 </head>
 <body>
   <div class="app">
-    <!-- タイトル -->
-    <div class="card">
-      <h1>家計簿</h1>
-      <p class="small-text">
-        ※データはこのiPhoneのブラウザ内だけに保存されます（サーバー送信なし）
-      </p>
-    </div>
+    <!-- ================= 入力タブ ================= -->
+    <section id="view-input" class="view active">
+      <div class="card">
+        <h1>家計簿</h1>
+        <p class="small-text">
+          データはこのiPhoneのブラウザ内だけに保存されます（サーバー送信なし）
+        </p>
+      </div>
 
-    <!-- 入力フォーム -->
-    <div class="card">
-      <h2>入力</h2>
-      <form id="entry-form">
+      <div class="card">
+        <h2>入力</h2>
+        <form id="entry-form">
+          <label>
+            日付
+            <input type="date" id="date" required>
+          </label>
+
+          <label>
+            種別
+            <select id="io">
+              <option value="expense">支出</option>
+              <option value="income">収入</option>
+            </select>
+          </label>
+
+          <label>
+            カテゴリ
+            <input list="category-list" id="category" placeholder="食費, 交通費, 日用品 など">
+            <datalist id="category-list"></datalist>
+          </label>
+
+          <label>
+            金種
+            <select id="method">
+              <option value="cash">現金</option>
+              <option value="card">カード</option>
+              <option value="point">ポイント</option>
+              <option value="other">その他</option>
+            </select>
+          </label>
+
+          <label>
+            店名
+            <input list="shop-list" id="shop" placeholder="スーパーA, コンビニB など">
+            <datalist id="shop-list"></datalist>
+          </label>
+
+          <label>
+            金額（円）
+            <input type="number" id="amount" inputmode="numeric" required>
+          </label>
+
+          <label>
+            メモ
+            <input type="text" id="memo" placeholder="任意">
+          </label>
+
+          <button type="submit" class="primary-btn">追加</button>
+        </form>
+      </div>
+
+      <div class="card">
+        <h2>基準残高</h2>
+        <p class="small-text">
+          財布の中身がはっきりわかるタイミング（月初など）で、
+          「この日に財布にいくらあったか」を登録しておきます。
+        </p>
+
         <label>
-          日付
-          <input type="date" id="date" required>
+          基準日
+          <input type="date" id="baseline-date">
         </label>
 
         <label>
-          カテゴリ
-          <input list="category-list" id="category" placeholder="食費, 交通費, 日用品 など">
-          <datalist id="category-list"></datalist>
+          財布の残高（円）
+          <input type="number" id="baseline-amount" inputmode="numeric">
         </label>
+
+        <button id="save-baseline" class="primary-btn">基準を保存</button>
+
+        <p class="small-text" id="current-baseline-info" style="margin-top:8px;"></p>
+      </div>
+    </section>
+
+    <!-- ================= カレンダータブ ================= -->
+    <section id="view-calendar" class="view">
+      <div class="card">
+        <h2>カレンダー</h2>
 
         <label>
-          金種
-          <select id="method">
-            <option value="cash">現金</option>
-            <option value="card">カード</option>
-            <option value="point">ポイント</option>
-            <option value="other">その他</option>
-          </select>
+          表示する月
+          <input type="month" id="calendar-month-select">
         </label>
+
+        <div class="calendar-grid" id="calendar-grid"></div>
+
+        <p class="small-text" style="margin-top:8px;">
+          日付をタップすると下にその日の明細が表示されます。
+        </p>
+      </div>
+
+      <div class="card">
+        <h2>日別 / 財布照合</h2>
 
         <label>
-          店名
-          <input list="shop-list" id="shop" placeholder="スーパーA, コンビニB など">
-          <datalist id="shop-list"></datalist>
+          表示する日
+          <input type="date" id="day-select">
         </label>
+
+        <div class="summary">
+          <span class="label">その日の支出合計</span>
+          <span class="value" id="day-expense-total">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">その日の収入合計</span>
+          <span class="value" id="day-income-total">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">その日の現金支出</span>
+          <span class="value" id="day-cash-expense-total">0 円</span>
+        </div>
+
+        <p class="section-title">基準から見た財布残高（理論値）</p>
+        <p class="small-text" id="expected-cash-text">
+          基準点が設定されていません。
+        </p>
+
+        <div class="inline-input">
+          <input type="number" id="actual-wallet" inputmode="numeric" placeholder="実際の財布残高（円）">
+          <button type="button" id="calc-diff">差額計算</button>
+        </div>
+        <p class="small-text" id="wallet-diff-text"></p>
+
+        <div class="records" id="day-records"></div>
+        <div class="empty" id="day-empty" style="display:none;">この日のデータはまだありません。</div>
+      </div>
+    </section>
+
+    <!-- ================= レポートタブ ================= -->
+    <section id="view-report" class="view">
+      <div class="card">
+        <h2>月別集計（支出）</h2>
 
         <label>
-          金額（円）※支出のみ（＋の数字）
-          <input type="number" id="amount" inputmode="numeric" required>
+          表示する月
+          <input type="month" id="month-select">
         </label>
 
-        <label>
-          メモ
-          <input type="text" id="memo" placeholder="任意">
-        </label>
+        <div class="summary">
+          <span class="label">月合計（支出のみ）</span>
+          <span class="value" id="month-total">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">現金</span>
+          <span class="value" id="month-cash">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">カード</span>
+          <span class="value" id="month-card">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">ポイント</span>
+          <span class="value" id="month-point">0 円</span>
+        </div>
+        <div class="summary">
+          <span class="label">その他</span>
+          <span class="value" id="month-other">0 円</span>
+        </div>
 
-        <button type="submit">追加</button>
-      </form>
-    </div>
+        <p class="small-text" style="margin-top:8px;">
+          次のステップで、ここにカテゴリ別の円グラフを表示できるようにする予定。
+        </p>
 
-    <!-- 基準残高の設定 -->
-    <div class="card">
-      <h2>基準残高</h2>
-      <p class="small-text">
-        財布の中身がはっきりわかるタイミング（月初など）で、
-        「この日に財布にいくらあったか」を登録しておきます。
-      </p>
-
-      <label>
-        基準日
-        <input type="date" id="baseline-date">
-      </label>
-
-      <label>
-        財布の残高（円）
-        <input type="number" id="baseline-amount" inputmode="numeric">
-      </label>
-
-      <button id="save-baseline">基準を保存</button>
-
-      <p class="small-text" id="current-baseline-info" style="margin-top:8px;"></p>
-    </div>
-
-    <!-- 日別集計＆財布照合 -->
-    <div class="card">
-      <h2>日別 / 財布照合</h2>
-
-      <label>
-        表示する日
-        <input type="date" id="day-select">
-      </label>
-
-      <div class="summary">
-        <span class="label">その日の支出合計</span>
-        <span class="value" id="day-total">0 円</span>
+        <div class="records" id="month-records"></div>
+        <div class="empty" id="month-empty" style="display:none;">この月のデータはまだありません。</div>
       </div>
-      <div class="summary">
-        <span class="label">その日の現金支出</span>
-        <span class="value" id="day-cash-total">0 円</span>
-      </div>
+    </section>
 
-      <p class="section-title">基準から見た財布残高（理論値）</p>
-      <p class="small-text" id="expected-cash-text">
-        基準点が設定されていません。
-      </p>
-
-      <div class="inline-input">
-        <input type="number" id="actual-wallet" inputmode="numeric" placeholder="実際の財布残高（円）">
-        <button type="button" id="calc-diff">差額計算</button>
+    <!-- ================= メニュータブ ================= -->
+    <section id="view-menu" class="view">
+      <div class="card">
+        <h2>メニュー</h2>
+        <p class="small-text">
+          ここには今後、データのバックアップ（CSVエクスポート）や、
+          アプリのバージョン情報などを置いていく予定。
+        </p>
       </div>
-      <p class="small-text" id="wallet-diff-text"></p>
+    </section>
+  </div>
 
-      <div class="records" id="day-records"></div>
-      <div class="empty" id="day-empty" style="display:none;">この日のデータはまだありません。</div>
-    </div>
-
-    <!-- 月別集計 -->
-    <div class="card">
-      <h2>月別集計</h2>
-
-      <label>
-        表示する月
-        <input type="month" id="month-select">
-      </label>
-
-      <div class="summary">
-        <span class="label">月合計（すべて）</span>
-        <span class="value" id="month-total">0 円</span>
-      </div>
-      <div class="summary">
-        <span class="label">現金</span>
-        <span class="value" id="month-cash">0 円</span>
-      </div>
-      <div class="summary">
-        <span class="label">カード</span>
-        <span class="value" id="month-card">0 円</span>
-      </div>
-      <div class="summary">
-        <span class="label">ポイント</span>
-        <span class="value" id="month-point">0 円</span>
-      </div>
-      <div class="summary">
-        <span class="label">その他</span>
-        <span class="value" id="month-other">0 円</span>
-      </div>
-
-      <div class="records" id="month-records"></div>
-      <div class="empty" id="month-empty" style="display:none;">この月のデータはまだありません。</div>
-    </div>
+  <!-- タブバー -->
+  <div class="tab-bar">
+    <button class="tab-button active" data-tab="input">入力</button>
+    <button class="tab-button" data-tab="calendar">カレンダー</button>
+    <button class="tab-button" data-tab="report">レポート</button>
+    <button class="tab-button" data-tab="menu">メニュー</button>
   </div>
 
   <script>
-    const STORAGE_KEY_RECORDS = 'kakeibo_records_v2';
+    const STORAGE_KEY_RECORDS = 'kakeibo_records_v3';
     const STORAGE_KEY_BASELINES = 'kakeibo_cash_baselines_v1';
 
-    // --- 共通: 日付系 ---
     function todayStr() {
       const d = new Date();
       const y = d.getFullYear();
@@ -308,17 +452,17 @@
     }
 
     function monthStrFromDateStr(dateStr) {
-      // yyyy-mm-dd -> yyyy-mm
       return dateStr.slice(0, 7);
     }
 
-    // --- データ読み書き ---
     function loadRecords() {
       const raw = localStorage.getItem(STORAGE_KEY_RECORDS);
       if (!raw) return [];
       try {
         const arr = JSON.parse(raw);
-        return Array.isArray(arr) ? arr : [];
+        if (!Array.isArray(arr)) return [];
+        // 旧データは支出扱いにして補完
+        return arr.map(r => r.io ? r : { ...r, io: 'expense' });
       } catch {
         return [];
       }
@@ -343,12 +487,12 @@
       localStorage.setItem(STORAGE_KEY_BASELINES, JSON.stringify(baselines));
     }
 
-    // データ本体
     const records = loadRecords();
     const baselines = loadBaselines();
 
-    // --- DOM取得 ---
+    // ===== DOM =====
     const dateInput = document.getElementById('date');
+    const ioSelect = document.getElementById('io');
     const categoryInput = document.getElementById('category');
     const categoryList = document.getElementById('category-list');
     const methodSelect = document.getElementById('method');
@@ -363,9 +507,13 @@
     const saveBaselineBtn = document.getElementById('save-baseline');
     const currentBaselineInfo = document.getElementById('current-baseline-info');
 
+    const calendarMonthSelect = document.getElementById('calendar-month-select');
+    const calendarGrid = document.getElementById('calendar-grid');
+
     const daySelect = document.getElementById('day-select');
-    const dayTotalEl = document.getElementById('day-total');
-    const dayCashTotalEl = document.getElementById('day-cash-total');
+    const dayExpenseTotalEl = document.getElementById('day-expense-total');
+    const dayIncomeTotalEl = document.getElementById('day-income-total');
+    const dayCashExpenseTotalEl = document.getElementById('day-cash-expense-total');
     const expectedCashText = document.getElementById('expected-cash-text');
     const actualWalletInput = document.getElementById('actual-wallet');
     const calcDiffBtn = document.getElementById('calc-diff');
@@ -382,20 +530,31 @@
     const monthRecordsContainer = document.getElementById('month-records');
     const monthEmpty = document.getElementById('month-empty');
 
-    // 日別照合用に、直近の「計算結果」を保持
-    let lastExpectedCash = null;
-    let lastExpectedCashDate = null;
+    const tabButtons = document.querySelectorAll('.tab-button');
+    const views = document.querySelectorAll('.view');
 
-    // --- 初期値セット ---
+    let lastExpectedCash = null;
+
     const today = todayStr();
     dateInput.value = today;
     daySelect.value = today;
-    monthSelect.value = monthStrFromDateStr(today);
-    // 基準日はデフォルトで月初にする（とりあえず）
     const [y, m] = today.split('-');
     baselineDateInput.value = `${y}-${m}-01`;
+    calendarMonthSelect.value = monthStrFromDateStr(today);
+    monthSelect.value = monthStrFromDateStr(today);
 
-    // --- 過去データから候補リスト作成 ---
+    // ===== タブ切り替え =====
+    tabButtons.forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tab = btn.dataset.tab;
+        views.forEach(v => {
+          v.classList.toggle('active', v.id === `view-${tab}`);
+        });
+        tabButtons.forEach(b => b.classList.toggle('active', b === btn));
+      });
+    });
+
+    // ===== datalist 更新 =====
     function updateDatalists() {
       const categorySet = new Set();
       const shopSet = new Set();
@@ -419,13 +578,12 @@
       });
     }
 
-    // --- 基準点関連 ---
+    // ===== 基準点関連 =====
     function getBaselineForDate(dateStr) {
       if (baselines.length === 0) return null;
       const candidates = baselines
         .filter(b => b.date <= dateStr)
-        .sort((a, b) => (a.date < b.date ? 1 : -1)); // 日付降順
-
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
       return candidates[0] || null;
     }
 
@@ -451,27 +609,22 @@
         return;
       }
 
-      baselines.push({
-        id: Date.now(),
-        date,
-        amount
-      });
-
-      // 日付昇順で揃えておく
+      baselines.push({ id: Date.now(), date, amount });
       baselines.sort((a, b) => (a.date > b.date ? 1 : -1));
       saveBaselines(baselines);
       baselineAmountInput.value = '';
 
       renderBaselineInfo();
-      renderDaySection(); // 基準残高テキストを更新
+      renderDaySection();
       alert('基準を保存しました');
     });
 
-    // --- 入力フォーム送信 ---
+    // ===== 入力 =====
     entryForm.addEventListener('submit', (e) => {
       e.preventDefault();
 
       const date = dateInput.value;
+      const io = ioSelect.value;
       const category = categoryInput.value.trim();
       const method = methodSelect.value;
       const shop = shopInput.value.trim();
@@ -487,8 +640,9 @@
       const record = {
         id: Date.now(),
         date,
+        io,       // expense / income
         category,
-        method,  // cash/card/point/other
+        method,   // cash / card / point / other
         shop,
         amount,
         memo
@@ -497,7 +651,6 @@
       records.push(record);
       saveRecords(records);
 
-      // 入力クリア（カテゴリと店名は残してもいいけど、一旦そのまま）
       amountInput.value = '';
       memoInput.value = '';
 
@@ -505,13 +658,116 @@
       renderAll();
     });
 
-    // --- 日別表示・財布照合 ---
+    // ===== カレンダー表示 =====
+    function renderCalendar() {
+      const month = calendarMonthSelect.value || monthStrFromDateStr(todayStr());
+      calendarMonthSelect.value = month;
+
+      const [yearStr, monthStr] = month.split('-');
+      const year = Number(yearStr);
+      const monthIdx = Number(monthStr) - 1;
+
+      const firstDay = new Date(year, monthIdx, 1);
+      const firstDow = firstDay.getDay(); // 0:日〜6:土
+      const startIndex = (firstDow + 6) % 7; // 月曜始まりに変換
+      const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
+
+      // 日毎の収入/支出集計
+      const byDate = {};
+      for (const r of records) {
+        if (!r.date.startsWith(month)) continue;
+        if (!byDate[r.date]) {
+          byDate[r.date] = { income: 0, expense: 0 };
+        }
+        if (r.io === 'income') {
+          byDate[r.date].income += r.amount;
+        } else {
+          byDate[r.date].expense += r.amount;
+        }
+      }
+
+      calendarGrid.innerHTML = '';
+
+      const headerRow = document.createElement('div');
+      headerRow.className = 'calendar-header-row';
+      ['月','火','水','木','金','土','日'].forEach(w => {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-header-cell';
+        cell.textContent = w;
+        headerRow.appendChild(cell);
+      });
+      calendarGrid.appendChild(headerRow);
+
+      const cells = document.createElement('div');
+      cells.className = 'calendar-cells';
+
+      for (let i = 0; i < startIndex; i++) {
+        const cell = document.createElement('div');
+        cell.className = 'calendar-cell empty';
+        cells.appendChild(cell);
+      }
+
+      const todayStrVal = todayStr();
+      const selectedDay = daySelect.value || todayStrVal;
+
+      for (let d = 1; d <= daysInMonth; d++) {
+        const dayStr = String(d).padStart(2, '0');
+        const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
+
+        const data = byDate[dateStr] || { income: 0, expense: 0 };
+
+        const cell = document.createElement('div');
+        cell.className = 'calendar-cell';
+
+        if (dateStr === todayStrVal) {
+          cell.classList.add('today');
+        }
+        if (dateStr === selectedDay) {
+          cell.classList.add('selected');
+        }
+
+        const num = document.createElement('div');
+        num.className = 'calendar-day-number';
+        num.textContent = d;
+        cell.appendChild(num);
+
+        if (data.income > 0) {
+          const inc = document.createElement('div');
+          inc.className = 'calendar-income income';
+          inc.textContent = `+${data.income.toLocaleString()}`;
+          cell.appendChild(inc);
+        }
+        if (data.expense > 0) {
+          const exp = document.createElement('div');
+          exp.className = 'calendar-expense expense';
+          exp.textContent = `-${data.expense.toLocaleString()}`;
+          cell.appendChild(exp);
+        }
+
+        cell.addEventListener('click', () => {
+          daySelect.value = dateStr;
+          renderBaselineInfo();
+          renderDaySection();
+          renderCalendar(); // 選択ハイライト更新
+        });
+
+        cells.appendChild(cell);
+      }
+
+      calendarGrid.appendChild(cells);
+    }
+
+    calendarMonthSelect.addEventListener('change', () => {
+      renderCalendar();
+    });
+
+    // ===== 日別表示 =====
     function renderDaySection() {
       const day = daySelect.value || todayStr();
 
       const list = records
         .filter(r => r.date === day)
-        .sort((a, b) => a.id - b.id); // 追加順
+        .sort((a, b) => a.id - b.id);
 
       dayRecordsContainer.innerHTML = '';
 
@@ -521,13 +777,18 @@
         dayEmpty.style.display = 'none';
       }
 
-      let dayTotal = 0;
-      let dayCashTotal = 0;
+      let expenseTotal = 0;
+      let incomeTotal = 0;
+      let cashExpenseTotal = 0;
 
       for (const r of list) {
-        dayTotal += r.amount;
-        if (r.method === 'cash') {
-          dayCashTotal += r.amount;
+        if (r.io === 'income') {
+          incomeTotal += r.amount;
+        } else {
+          expenseTotal += r.amount;
+          if (r.method === 'cash') {
+            cashExpenseTotal += r.amount;
+          }
         }
 
         const div = document.createElement('div');
@@ -542,12 +803,12 @@
           `${r.category || '未分類'} / ${r.shop || '店名なし'} / ${methodLabel(r.method)}`;
 
         const right = document.createElement('div');
-        right.className = 'record-amount expense';
-        right.textContent = `- ${r.amount.toLocaleString()} 円`;
+        right.className = 'record-amount ' + (r.io === 'income' ? 'income' : 'expense');
+        const sign = r.io === 'income' ? '+' : '-';
+        right.textContent = `${sign}${r.amount.toLocaleString()} 円`;
 
         top.appendChild(left);
         top.appendChild(right);
-
         div.appendChild(top);
 
         if (r.memo) {
@@ -560,37 +821,40 @@
         dayRecordsContainer.appendChild(div);
       }
 
-      dayTotalEl.textContent = `${dayTotal.toLocaleString()} 円`;
-      dayCashTotalEl.textContent = `${dayCashTotal.toLocaleString()} 円`;
+      dayExpenseTotalEl.textContent = `${expenseTotal.toLocaleString()} 円`;
+      dayIncomeTotalEl.textContent = `${incomeTotal.toLocaleString()} 円`;
+      dayCashExpenseTotalEl.textContent = `${cashExpenseTotal.toLocaleString()} 円`;
 
-      // 基準から見た理論上の財布残高を計算
       const baseline = getBaselineForDate(day);
       if (!baseline) {
         expectedCashText.textContent = 'この日以前の基準点がないため計算できません。';
         lastExpectedCash = null;
-        lastExpectedCashDate = null;
       } else {
-        const cashOut = records
-          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day)
+        const cashExpense = records
+          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day && r.io === 'expense')
           .reduce((sum, r) => sum + r.amount, 0);
 
-        const expected = baseline.amount - cashOut;
+        const cashIncome = records
+          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day && r.io === 'income')
+          .reduce((sum, r) => sum + r.amount, 0);
+
+        const expected = baseline.amount - cashExpense + cashIncome;
         lastExpectedCash = expected;
-        lastExpectedCashDate = day;
 
         expectedCashText.innerHTML =
           `基準 ${baseline.date} の <span class="highlight">${baseline.amount.toLocaleString()} 円</span> から ` +
-          `この日までの現金支出 <span class="highlight">${cashOut.toLocaleString()} 円</span> を引くと、` +
+          `この日までの現金支出 <span class="highlight">${cashExpense.toLocaleString()} 円</span> と ` +
+          `現金収入 <span class="highlight">${cashIncome.toLocaleString()} 円</span> を反映すると、` +
           `<br>この日の理論上の財布残高は <span class="highlight">${expected.toLocaleString()} 円</span> です。`;
       }
 
-      // 差額表示は日付変更時にクリア
       walletDiffText.textContent = '';
     }
 
     daySelect.addEventListener('change', () => {
       renderBaselineInfo();
       renderDaySection();
+      renderCalendar(); // カレンダーの選択ハイライト更新
     });
 
     calcDiffBtn.addEventListener('click', () => {
@@ -620,13 +884,14 @@
       walletDiffText.innerHTML = msg;
     });
 
-    // --- 月別表示 ---
+    // ===== 月別集計（支出のみ） =====
     function renderMonthSection() {
       const month = monthSelect.value || monthStrFromDateStr(todayStr());
+      monthSelect.value = month;
 
       const list = records
-        .filter(r => r.date.startsWith(month))
-        .sort((a, b) => (a.date < b.date ? 1 : -1)); // 日付降順
+        .filter(r => r.date.startsWith(month) && r.io === 'expense')
+        .sort((a, b) => (a.date < b.date ? 1 : -1));
 
       monthRecordsContainer.innerHTML = '';
 
@@ -662,7 +927,7 @@
 
         const right = document.createElement('div');
         right.className = 'record-amount expense';
-        right.textContent = `- ${r.amount.toLocaleString()} 円`;
+        right.textContent = `-${r.amount.toLocaleString()} 円`;
 
         top.appendChild(left);
         top.appendChild(right);
@@ -687,17 +952,12 @@
 
     monthSelect.addEventListener('change', renderMonthSection);
 
-    // --- ユーティリティ ---
     function methodLabel(method) {
       switch (method) {
-        case 'cash':
-          return '現金';
-        case 'card':
-          return 'カード';
-        case 'point':
-          return 'ポイント';
-        default:
-          return 'その他';
+        case 'cash': return '現金';
+        case 'card': return 'カード';
+        case 'point': return 'ポイント';
+        default: return 'その他';
       }
     }
 
@@ -705,10 +965,10 @@
       updateDatalists();
       renderBaselineInfo();
       renderDaySection();
+      renderCalendar();
       renderMonthSection();
     }
 
-    // 初期描画
     renderAll();
   </script>
 </body>
