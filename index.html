@@ -122,10 +122,10 @@
     }
 
     .expense {
-      color: #d66b00; /* オレンジ */
+      color: #d66b00; /* オレンジ（支出） */
     }
     .income {
-      color: #007aff; /* 青 */
+      color: #007aff; /* 青（収入） */
     }
 
     .empty {
@@ -161,6 +161,36 @@
     }
     .highlight {
       font-weight: 700;
+    }
+
+    /* 写真ID表示 */
+    .photo-id-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 2px;
+      font-size: 12px;
+      color: #555;
+      flex-wrap: wrap;
+    }
+    .photo-id-label {
+      font-size: 12px;
+    }
+    .photo-id-value {
+      font-family: monospace;
+      font-size: 12px;
+    }
+    .photo-id-copy-btn {
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 999px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      color: #333;
+      cursor: pointer;
+    }
+    .photo-id-copy-btn:active {
+      opacity: 0.8;
     }
 
     /* カレンダー */
@@ -411,7 +441,7 @@
         </div>
 
         <p class="small-text" style="margin-top:8px;">
-          次のステップで、ここにカテゴリ別の円グラフを表示できるようにする予定。
+          次のステップで、ここにカテゴリ別の円グラフや予算の進捗を表示できるようにする予定。
         </p>
 
         <div class="records" id="month-records"></div>
@@ -461,8 +491,14 @@
       try {
         const arr = JSON.parse(raw);
         if (!Array.isArray(arr)) return [];
-        // 旧データは支出扱いにして補完
-        return arr.map(r => r.io ? r : { ...r, io: 'expense' });
+        // 旧データは支出扱いにして補完しつつ、photoIdがなければ null で追加
+        return arr.map(r => {
+          const withIO = r.io ? r : { ...r, io: 'expense' };
+          if (!('photoId' in withIO)) {
+            withIO.photoId = null;
+          }
+          return withIO;
+        });
       } catch {
         return [];
       }
@@ -619,6 +655,27 @@
       alert('基準を保存しました');
     });
 
+    // ===== 写真ID生成 =====
+    function generatePhotoId(date) {
+      // 既存の同日レコードから最大連番を探して +1
+      const sameDay = records.filter(r => r.date === date);
+      let maxSeq = 0;
+      for (const r of sameDay) {
+        if (r.photoId) {
+          const match = String(r.photoId).match(/_(\d{2})$/);
+          if (match) {
+            const n = parseInt(match[1], 10);
+            if (!isNaN(n) && n > maxSeq) {
+              maxSeq = n;
+            }
+          }
+        }
+      }
+      const next = maxSeq + 1;
+      const seqStr = String(next).padStart(2, '0');
+      return `${date}_${seqStr}`;
+    }
+
     // ===== 入力 =====
     entryForm.addEventListener('submit', (e) => {
       e.preventDefault();
@@ -637,6 +694,8 @@
         return;
       }
 
+      const photoId = generatePhotoId(date);
+
       const record = {
         id: Date.now(),
         date,
@@ -645,7 +704,8 @@
         method,   // cash / card / point / other
         shop,
         amount,
-        memo
+        memo,
+        photoId   // レシート紐づけ用ID
       };
 
       records.push(record);
@@ -668,11 +728,10 @@
       const monthIdx = Number(monthStr) - 1;
 
       const firstDay = new Date(year, monthIdx, 1);
-      const firstDow = firstDay.getDay(); // 0:日〜6:土
-      const startIndex = (firstDow + 6) % 7; // 月曜始まりに変換
+      const firstDow = firstDay.getDay();
+      const startIndex = (firstDow + 6) % 7; // 月曜始まり
       const daysInMonth = new Date(year, monthIdx + 1, 0).getDate();
 
-      // 日毎の収入/支出集計
       const byDate = {};
       for (const r of records) {
         if (!r.date.startsWith(month)) continue;
@@ -818,6 +877,53 @@
           div.appendChild(meta);
         }
 
+        // 写真ID行（新規追加部分）
+        if (r.photoId) {
+          const photoRow = document.createElement('div');
+          photoRow.className = 'photo-id-row';
+
+          const label = document.createElement('span');
+          label.className = 'photo-id-label';
+          label.textContent = '写真ID';
+
+          const value = document.createElement('span');
+          value.className = 'photo-id-value';
+          value.textContent = r.photoId;
+
+          const copyBtn = document.createElement('button');
+          copyBtn.type = 'button';
+          copyBtn.className = 'photo-id-copy-btn';
+          copyBtn.textContent = 'コピー';
+
+          copyBtn.addEventListener('click', async () => {
+            try {
+              if (navigator.clipboard && navigator.clipboard.writeText) {
+                await navigator.clipboard.writeText(r.photoId);
+                alert('写真IDをコピーしました');
+              } else {
+                // 古い環境向けフォールバック
+                const textarea = document.createElement('textarea');
+                textarea.value = r.photoId;
+                textarea.style.position = 'fixed';
+                textarea.style.left = '-9999px';
+                document.body.appendChild(textarea);
+                textarea.focus();
+                textarea.select();
+                document.execCommand('copy');
+                document.body.removeChild(textarea);
+                alert('写真IDをコピーしました');
+              }
+            } catch (e) {
+              alert('コピーに失敗しました。手動で選択してください。');
+            }
+          });
+
+          photoRow.appendChild(label);
+          photoRow.appendChild(value);
+          photoRow.appendChild(copyBtn);
+          div.appendChild(photoRow);
+        }
+
         dayRecordsContainer.appendChild(div);
       }
 
@@ -831,11 +937,21 @@
         lastExpectedCash = null;
       } else {
         const cashExpense = records
-          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day && r.io === 'expense')
+          .filter(r =>
+            r.method === 'cash' &&
+            r.date >= baseline.date &&
+            r.date <= day &&
+            r.io === 'expense'
+          )
           .reduce((sum, r) => sum + r.amount, 0);
 
         const cashIncome = records
-          .filter(r => r.method === 'cash' && r.date >= baseline.date && r.date <= day && r.io === 'income')
+          .filter(r =>
+            r.method === 'cash' &&
+            r.date >= baseline.date &&
+            r.date <= day &&
+            r.io === 'income'
+          )
           .reduce((sum, r) => sum + r.amount, 0);
 
         const expected = baseline.amount - cashExpense + cashIncome;
