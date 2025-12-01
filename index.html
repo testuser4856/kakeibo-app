@@ -480,6 +480,9 @@
           <input type="date" id="day-select">
         </label>
 
+        <div class="records" id="day-records"></div>
+        <div class="empty" id="day-empty" style="display:none;">この日のデータはまだありません。</div>
+
         <div class="summary">
           <span class="label">その日の支出合計</span>
           <span class="value" id="day-expense-total">0 円</span>
@@ -504,8 +507,6 @@
         </div>
         <p class="small-text" id="wallet-diff-text"></p>
 
-        <div class="records" id="day-records"></div>
-        <div class="empty" id="day-empty" style="display:none;">この日のデータはまだありません。</div>
       </div>
     </section>
 
@@ -936,56 +937,44 @@
       const todayStrVal = todayStr();
       const selectedDay = daySelect.value || todayStrVal;
 
-      for (let d = 1; d <= daysInMonth; d++) {
-        const dayStr = String(d).padStart(2, '0');
-        const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
+		for (let d = 1; d <= daysInMonth; d++) {
+		  const dayStr = String(d).padStart(2, '0');
+		  const dateStr = `${yearStr}-${monthStr}-${dayStr}`;
 
-        const data = byDate[dateStr] || { income: 0, expense: 0 };
+		  const data = byDate[dateStr] || { income: 0, expense: 0 };
 
-        const cell = document.createElement('div');
-        cell.className = 'calendar-cell';
+		  const cell = document.createElement('div');
+		  cell.className = 'calendar-cell';
 
-        if (dateStr === todayStrVal) {
-          cell.classList.add('today');
-        }
-        if (dateStr === selectedDay) {
-          cell.classList.add('selected');
-        }
+		  if (dateStr === todayStrVal) {
+		    cell.classList.add('today');
+		  }
+		  if (dateStr === selectedDay) {
+		    cell.classList.add('selected');
+		  }
 
-        const num = document.createElement('div');
-        num.className = 'calendar-day-number';
-        num.textContent = d;
-        cell.appendChild(num);
+		  const num = document.createElement('div');
+		  num.className = 'calendar-day-number';
+		  num.textContent = d;
+		  cell.appendChild(num);
 
-        if (data.income > 0) {
-          const inc = document.createElement('div');
-          inc.className = 'calendar-income income';
-          inc.textContent = `+${data.income.toLocaleString()}`;
-          cell.appendChild(inc);
-        }
-        if (data.expense > 0) {
-          const exp = document.createElement('div');
-          exp.className = 'calendar-expense expense';
-          exp.textContent = `-${data.expense.toLocaleString()}`;
-          cell.appendChild(exp);
-        }
+		  // ★ここだけにする：その日の「支出合計」だけ1行表示（ラベルなし）
+		  if (data.expense > 0) {
+		    const total = document.createElement('div');
+		    total.className = 'calendar-total expense';
+		    total.textContent = `-${data.expense.toLocaleString()}`;
+		    cell.appendChild(total);
+		  }
 
-        if (data.expense > 0) {
-          const total = document.createElement('div');
-          total.className = 'calendar-total expense';
-          total.textContent = `合計 -${data.expense.toLocaleString()}`;
-          cell.appendChild(total);
-        }
+		  cell.addEventListener('click', () => {
+		    daySelect.value = dateStr;
+		    renderBaselineInfo();
+		    renderDaySection();
+		    renderCalendar(); // 選択ハイライト更新
+		  });
 
-        cell.addEventListener('click', () => {
-          daySelect.value = dateStr;
-          renderBaselineInfo();
-          renderDaySection();
-          renderCalendar(); // 選択ハイライト更新
-        });
-
-        cells.appendChild(cell);
-      }
+		  cells.appendChild(cell);
+		}
 
       calendarGrid.appendChild(cells);
     }
