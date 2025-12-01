@@ -11,6 +11,8 @@
   <meta name="apple-mobile-web-app-title" content="家計簿">
   <!-- アイコンはあとで差し替え -->
   <link rel="apple-touch-icon" href="icon-192.png">
+  <!-- 円グラフ用 Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
     html, body {
@@ -193,6 +195,21 @@
       opacity: 0.8;
     }
 
+    /* 削除ボタン */
+    .delete-btn {
+      padding: 2px 10px;
+      font-size: 11px;
+      border-radius: 999px;
+      border: 1px solid #e06666;
+      background: #fff5f5;
+      color: #c03030;
+      cursor: pointer;
+      margin-top: 4px;
+    }
+    .delete-btn:active {
+      opacity: 0.8;
+    }
+
     /* カレンダー */
     .calendar-grid {
       margin-top: 8px;
@@ -209,7 +226,7 @@
       color: #666;
     }
     .calendar-cell {
-      min-height: 52px;
+      min-height: 60px;
       background: #fafafa;
       border-radius: 8px;
       padding: 4px;
@@ -229,6 +246,11 @@
     }
     .calendar-expense {
       font-size: 11px;
+    }
+    .calendar-total {
+      font-size: 11px;
+      font-weight: 600;
+      margin-top: 2px;
     }
     .calendar-cell.today {
       border: 1px solid #007aff;
@@ -267,18 +289,96 @@
       color: #007aff;
       font-weight: 600;
     }
+
+    /* レポート用 予算 progress */
+    .budget-row {
+      display: flex;
+      flex-direction: column;
+      margin-top: 6px;
+      font-size: 12px;
+    }
+    .budget-row-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 4px;
+    }
+    .budget-row-header span {
+      white-space: nowrap;
+    }
+    .progress-bar {
+      width: 100%;
+      height: 6px;
+      border-radius: 999px;
+      background: #eee;
+      margin-top: 2px;
+      overflow: hidden;
+    }
+    .progress-bar-inner {
+      height: 100%;
+      border-radius: 999px;
+    }
+    .progress-ok {
+      background: #007aff;
+    }
+    .progress-warn {
+      background: #f5a623;
+    }
+    .progress-over {
+      background: #d0021b;
+    }
+
+    .budget-list {
+      margin-top: 8px;
+      border-top: 1px dashed #ddd;
+      padding-top: 6px;
+    }
+    .budget-item-line {
+      display: flex;
+      justify-content: space-between;
+      font-size: 12px;
+      margin-top: 4px;
+      align-items: center;
+      gap: 4px;
+    }
+    .budget-item-line button {
+      padding: 2px 8px;
+      font-size: 11px;
+      border-radius: 999px;
+      border: 1px solid #ccc;
+      background: #f5f5f5;
+      color: #333;
+    }
+    .budget-item-line button:active {
+      opacity: 0.8;
+    }
+
+    .no-chart {
+      font-size: 12px;
+      color: #777;
+      margin-top: 4px;
+    }
+	.app-version {
+	  font-size: 12px;
+	  margin-left: 8px;
+	  color: #888;
+	  font-weight: normal;
+	}
+
   </style>
 </head>
 <body>
   <div class="app">
     <!-- ================= 入力タブ ================= -->
     <section id="view-input" class="view active">
-      <div class="card">
-        <h1>家計簿</h1>
-        <p class="small-text">
-          データはこのiPhoneのブラウザ内だけに保存されます（サーバー送信なし）
-        </p>
-      </div>
+	<div class="card">
+	  <h1>
+	    家計簿
+	    <span id="app-version" class="app-version"></span>
+	  </h1>
+	  <p class="small-text">
+	    データはこのiPhoneのブラウザ内だけに保存されます（サーバー送信なし）
+	  </p>
+	</div>
 
       <div class="card">
         <h2>入力</h2>
@@ -412,13 +512,14 @@
     <!-- ================= レポートタブ ================= -->
     <section id="view-report" class="view">
       <div class="card">
-        <h2>月別集計（支出）</h2>
+        <h2>月別レポート</h2>
 
         <label>
           表示する月
           <input type="month" id="month-select">
         </label>
 
+        <!-- 全体サマリ（支出のみ） -->
         <div class="summary">
           <span class="label">月合計（支出のみ）</span>
           <span class="value" id="month-total">0 円</span>
@@ -440,10 +541,35 @@
           <span class="value" id="month-other">0 円</span>
         </div>
 
-        <p class="small-text" style="margin-top:8px;">
-          次のステップで、ここにカテゴリ別の円グラフや予算の進捗を表示できるようにする予定。
+        <!-- 円グラフ -->
+        <p class="section-title">カテゴリ別支出（円グラフ）</p>
+        <canvas id="category-pie" width="300" height="300"></canvas>
+        <div id="no-chart-message" class="no-chart" style="display:none;">
+          この月の支出データがまだありません。
+        </div>
+
+        <!-- 予算と進捗 -->
+        <p class="section-title">カテゴリ別 予算と進捗</p>
+        <p class="small-text">
+          予算は「毎月共通」で使います。カテゴリを指定して月の目安額を登録してください。
         </p>
 
+        <label>
+          カテゴリ
+          <input list="category-list" id="budget-category" placeholder="食費, 交通費 など">
+        </label>
+        <label>
+          月の予算（円）
+          <input type="number" id="budget-amount" inputmode="numeric">
+        </label>
+        <button id="save-budget" class="primary-btn">予算を登録 / 更新</button>
+
+        <div id="budget-progress-list"></div>
+
+        <div class="budget-list" id="budget-list"></div>
+
+        <!-- 月の明細一覧 -->
+        <p class="section-title" style="margin-top:12px;">この月の明細（支出）</p>
         <div class="records" id="month-records"></div>
         <div class="empty" id="month-empty" style="display:none;">この月のデータはまだありません。</div>
       </div>
@@ -470,8 +596,10 @@
   </div>
 
   <script>
+    const APP_VERSION = 'v0.4.0';  // ← 好きな書式でOK。日付でも可
     const STORAGE_KEY_RECORDS = 'kakeibo_records_v3';
     const STORAGE_KEY_BASELINES = 'kakeibo_cash_baselines_v1';
+    const STORAGE_KEY_BUDGETS = 'kakeibo_budgets_v1';
 
     function todayStr() {
       const d = new Date();
@@ -491,7 +619,6 @@
       try {
         const arr = JSON.parse(raw);
         if (!Array.isArray(arr)) return [];
-        // 旧データは支出扱いにして補完しつつ、photoIdがなければ null で追加
         return arr.map(r => {
           const withIO = r.io ? r : { ...r, io: 'expense' };
           if (!('photoId' in withIO)) {
@@ -523,11 +650,31 @@
       localStorage.setItem(STORAGE_KEY_BASELINES, JSON.stringify(baselines));
     }
 
+    function loadBudgets() {
+      const raw = localStorage.getItem(STORAGE_KEY_BUDGETS);
+      if (!raw) return {};
+      try {
+        const obj = JSON.parse(raw);
+        return obj && typeof obj === 'object' ? obj : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveBudgets(budgets) {
+      localStorage.setItem(STORAGE_KEY_BUDGETS, JSON.stringify(budgets));
+    }
+
     const records = loadRecords();
     const baselines = loadBaselines();
+    const budgets = loadBudgets();
 
     // ===== DOM =====
     const dateInput = document.getElementById('date');
+	const appVersionSpan = document.getElementById('app-version');
+	if (appVersionSpan) {
+	  appVersionSpan.textContent = APP_VERSION;
+	}
     const ioSelect = document.getElementById('io');
     const categoryInput = document.getElementById('category');
     const categoryList = document.getElementById('category-list');
@@ -566,8 +713,18 @@
     const monthRecordsContainer = document.getElementById('month-records');
     const monthEmpty = document.getElementById('month-empty');
 
+    const budgetCategoryInput = document.getElementById('budget-category');
+    const budgetAmountInput = document.getElementById('budget-amount');
+    const saveBudgetBtn = document.getElementById('save-budget');
+    const budgetProgressList = document.getElementById('budget-progress-list');
+    const budgetListEl = document.getElementById('budget-list');
+
     const tabButtons = document.querySelectorAll('.tab-button');
     const views = document.querySelectorAll('.view');
+
+    const pieCanvas = document.getElementById('category-pie');
+    const noChartMessage = document.getElementById('no-chart-message');
+    let reportPieChart = null;
 
     let lastExpectedCash = null;
 
@@ -657,7 +814,6 @@
 
     // ===== 写真ID生成 =====
     function generatePhotoId(date) {
-      // 既存の同日レコードから最大連番を探して +1
       const sameDay = records.filter(r => r.date === date);
       let maxSeq = 0;
       for (const r of sameDay) {
@@ -674,6 +830,17 @@
       const next = maxSeq + 1;
       const seqStr = String(next).padStart(2, '0');
       return `${date}_${seqStr}`;
+    }
+
+    // ===== レコード削除 =====
+    function deleteRecord(id) {
+      const idx = records.findIndex(r => r.id === id);
+      if (idx === -1) return;
+      const ok = confirm('この明細を削除しますか？');
+      if (!ok) return;
+      records.splice(idx, 1);
+      saveRecords(records);
+      renderAll();
     }
 
     // ===== 入力 =====
@@ -803,6 +970,13 @@
           cell.appendChild(exp);
         }
 
+        if (data.expense > 0) {
+          const total = document.createElement('div');
+          total.className = 'calendar-total expense';
+          total.textContent = `合計 -${data.expense.toLocaleString()}`;
+          cell.appendChild(total);
+        }
+
         cell.addEventListener('click', () => {
           daySelect.value = dateStr;
           renderBaselineInfo();
@@ -877,7 +1051,6 @@
           div.appendChild(meta);
         }
 
-        // 写真ID行（新規追加部分）
         if (r.photoId) {
           const photoRow = document.createElement('div');
           photoRow.className = 'photo-id-row';
@@ -901,7 +1074,6 @@
                 await navigator.clipboard.writeText(r.photoId);
                 alert('写真IDをコピーしました');
               } else {
-                // 古い環境向けフォールバック
                 const textarea = document.createElement('textarea');
                 textarea.value = r.photoId;
                 textarea.style.position = 'fixed';
@@ -923,6 +1095,13 @@
           photoRow.appendChild(copyBtn);
           div.appendChild(photoRow);
         }
+
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '削除';
+        delBtn.addEventListener('click', () => deleteRecord(r.id));
+        div.appendChild(delBtn);
 
         dayRecordsContainer.appendChild(div);
       }
@@ -1000,7 +1179,7 @@
       walletDiffText.innerHTML = msg;
     });
 
-    // ===== 月別集計（支出のみ） =====
+    // ===== 月別集計（支出のみ） & レポート =====
     function renderMonthSection() {
       const month = monthSelect.value || monthStrFromDateStr(todayStr());
       monthSelect.value = month;
@@ -1023,12 +1202,17 @@
       let point = 0;
       let other = 0;
 
+      const categoryTotals = {};
+
       for (const r of list) {
         total += r.amount;
         if (r.method === 'cash') cash += r.amount;
         else if (r.method === 'card') card += r.amount;
         else if (r.method === 'point') point += r.amount;
         else other += r.amount;
+
+        const cat = r.category || '未分類';
+        categoryTotals[cat] = (categoryTotals[cat] || 0) + r.amount;
 
         const div = document.createElement('div');
         div.className = 'record-item';
@@ -1039,7 +1223,7 @@
         const left = document.createElement('div');
         left.className = 'record-left';
         left.textContent =
-          `${r.date} / ${r.category || '未分類'} / ${r.shop || '店名なし'} / ${methodLabel(r.method)}`;
+          `${r.date} / ${cat} / ${r.shop || '店名なし'} / ${methodLabel(r.method)}`;
 
         const right = document.createElement('div');
         right.className = 'record-amount expense';
@@ -1056,6 +1240,13 @@
           div.appendChild(meta);
         }
 
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'delete-btn';
+        delBtn.textContent = '削除';
+        delBtn.addEventListener('click', () => deleteRecord(r.id));
+        div.appendChild(delBtn);
+
         monthRecordsContainer.appendChild(div);
       }
 
@@ -1064,9 +1255,170 @@
       monthCardEl.textContent = `${card.toLocaleString()} 円`;
       monthPointEl.textContent = `${point.toLocaleString()} 円`;
       monthOtherEl.textContent = `${other.toLocaleString()} 円`;
+
+      renderCategoryPieChart(categoryTotals);
+      renderBudgetProgress(categoryTotals);
+      renderBudgetList();
     }
 
     monthSelect.addEventListener('change', renderMonthSection);
+
+    // ===== 円グラフ描画 =====
+    function renderCategoryPieChart(categoryTotals) {
+      const labels = Object.keys(categoryTotals);
+      const data = labels.map(l => categoryTotals[l]);
+
+      if (labels.length === 0) {
+        if (reportPieChart) {
+          reportPieChart.destroy();
+          reportPieChart = null;
+        }
+        noChartMessage.style.display = 'block';
+        return;
+      }
+
+      noChartMessage.style.display = 'none';
+
+      if (reportPieChart) {
+        reportPieChart.destroy();
+      }
+
+      reportPieChart = new Chart(pieCanvas, {
+        type: 'pie',
+        data: {
+          labels,
+          datasets: [{
+            data
+          }]
+        },
+        options: {
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                font: { size: 11 }
+              }
+            }
+          }
+        }
+      });
+    }
+
+    // ===== 予算の進捗表示 =====
+    function renderBudgetProgress(categoryTotals) {
+      budgetProgressList.innerHTML = '';
+
+      const allCats = new Set([
+        ...Object.keys(categoryTotals),
+        ...Object.keys(budgets)
+      ]);
+
+      if (allCats.size === 0) {
+        return;
+      }
+
+      allCats.forEach(cat => {
+        const used = categoryTotals[cat] || 0;
+        const budget = budgets[cat] || null;
+
+        const row = document.createElement('div');
+        row.className = 'budget-row';
+
+        const header = document.createElement('div');
+        header.className = 'budget-row-header';
+
+        const left = document.createElement('span');
+        left.textContent = cat;
+
+        const right = document.createElement('span');
+        if (budget) {
+          const remain = budget - used;
+          const remainText = remain >= 0
+            ? `残り ${remain.toLocaleString()} 円`
+            : `オーバー ${Math.abs(remain).toLocaleString()} 円`;
+          right.textContent =
+            `使った額 ${used.toLocaleString()} / 予算 ${budget.toLocaleString()} 円 (${remainText})`;
+        } else {
+          right.textContent = `使った額 ${used.toLocaleString()} 円 / 予算未設定`;
+        }
+
+        header.appendChild(left);
+        header.appendChild(right);
+        row.appendChild(header);
+
+        if (budget && budget > 0) {
+          const ratio = used / budget;
+          const width = Math.min(100, Math.round(ratio * 100));
+          const bar = document.createElement('div');
+          bar.className = 'progress-bar';
+          const inner = document.createElement('div');
+          inner.className = 'progress-bar-inner';
+
+          if (ratio < 0.7) inner.classList.add('progress-ok');
+          else if (ratio <= 1) inner.classList.add('progress-warn');
+          else inner.classList.add('progress-over');
+
+          inner.style.width = `${width}%`;
+          bar.appendChild(inner);
+          row.appendChild(bar);
+        }
+
+        budgetProgressList.appendChild(row);
+      });
+    }
+
+    // ===== 予算リスト表示 =====
+    function renderBudgetList() {
+      budgetListEl.innerHTML = '';
+      const cats = Object.keys(budgets);
+      if (cats.length === 0) {
+        budgetListEl.textContent = '登録済みの予算はまだありません。';
+        return;
+      }
+
+      cats.sort().forEach(cat => {
+        const line = document.createElement('div');
+        line.className = 'budget-item-line';
+
+        const left = document.createElement('span');
+        left.textContent = `${cat}: ${budgets[cat].toLocaleString()} 円 / 月`;
+
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = '削除';
+        btn.addEventListener('click', () => {
+          const ok = confirm(`「${cat}」の予算を削除しますか？`);
+          if (!ok) return;
+          delete budgets[cat];
+          saveBudgets(budgets);
+          renderMonthSection();
+        });
+
+        line.appendChild(left);
+        line.appendChild(btn);
+        budgetListEl.appendChild(line);
+      });
+    }
+
+    // ===== 予算登録 =====
+    saveBudgetBtn.addEventListener('click', () => {
+      const cat = budgetCategoryInput.value.trim();
+      const amtStr = budgetAmountInput.value;
+      const amt = Number(amtStr);
+
+      if (!cat || !amtStr || isNaN(amt)) {
+        alert('カテゴリと予算額を入力してください');
+        return;
+      }
+
+      budgets[cat] = amt;
+      saveBudgets(budgets);
+      budgetCategoryInput.value = '';
+      budgetAmountInput.value = '';
+
+      renderMonthSection();
+      alert('予算を登録 / 更新しました');
+    });
 
     function methodLabel(method) {
       switch (method) {
